@@ -1,4 +1,4 @@
-const userLoginUrl = "http://127.0.0.1:8000/user/login"
+const userLoginUrl = "http://localhost:8000/user/login"
 
 export const actions = {
 	default: async ({request}) => {
