@@ -1,4 +1,6 @@
 <script>
+	const backend_url = import.meta.env.VITE_BACKEND_URL;
+
 	function setCookie(username, accessCode) {
 		const path = 'path=/'; // Accessible throughout the website
 
@@ -13,7 +15,7 @@
 		const submittedAccessCode = document.getElementById('accessCode').value;
 		const submittedUsername = document.getElementById('username').value;
 
-		const response = await fetch('http://18.188.92.244:80/verifyaccesscode', {
+		const response = await fetch(`${backend_url}/verifyaccesscode`, {
 			method: 'POST', // Use POST for sending form data
 			headers: { 'Content-Type': 'application/json' }, // Set content type
 			body: JSON.stringify({ access_code: submittedAccessCode }) // Send access code and username

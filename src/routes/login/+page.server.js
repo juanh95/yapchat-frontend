@@ -1,4 +1,4 @@
-const userLoginUrl = 'http://localhost:8000/user/login';
+const backend_url = import.meta.env.VITE_BACKEND_URL;
 
 export const actions = {
 	default: async ({ request }) => {
@@ -20,13 +20,15 @@ export const actions = {
 		};
 
 		try {
-			const response = await fetch(userLoginUrl, options);
+			const response = await fetch(`${backend_url}/user/login`, options);
 
 			if (response.ok) {
 				const data = await response.json();
-				console.log(data);
 
-				return { data };
+				return { success: true, username: username, token: data.token };
+			} else {
+				console.log('Invaid Credentials Try Again');
+				return { success: false };
 			}
 		} catch (error) {
 			console.error('Error sending data:', error);

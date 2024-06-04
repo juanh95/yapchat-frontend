@@ -1,6 +1,13 @@
 <script>
 	import { get, writable } from 'svelte/store';
-	import { onMount } from 'svelte';
+	import { afterUpdate, beforeUpdate, onMount } from 'svelte';
+
+	const websocket_url = import.meta.env.VITE_WEBSOCKET_URL;
+
+	let div;
+	let autoscroll = false;
+
+	let checked = true;
 
 	function getCookie(name) {
 		const cookieString = document.cookie;
@@ -17,50 +24,64 @@
 		return null;
 	}
 
-	const connected = writable(false); // Flag for connection status
-
-	function createMessageListItem(message, isOutgoing = false) {
+	function createMessageListItem(message, sender = null, broadcast = false) {
 		const li = document.createElement('li');
+
 		li.textContent = message;
 
-		if (isOutgoing) {
+		const username = getCookie('username');
+
+		if (sender == username) {
 			li.classList.add('user-message');
 			li.style.color = '#21E299';
+		} else if (broadcast) {
+			li.textContent = message;
+		} else {
+			li.textContent = `${sender} says: ${message}`;
 		}
 
 		return li;
 	}
 
+	const connected = writable(false); // Flag for connection status
+
 	let ws; // Variable to hold the websocket object
 	let messageList; // Initializing the message list
+
+	beforeUpdate(() => {
+		if (div) {
+			const scrollableDistance = div.scrollHeight - div.offsetHeight;
+			autoscroll = div.scrollTop < scrollableDistance - 20;
+		}
+	});
 
 	async function connectToWebsocket() {
 		try {
 			const username = getCookie('username');
-			const access_code = getCookie('accessCode');
 
 			if (username === null) {
-				console.log('username is listed as null');
-			} else if (access_code === null) {
-				console.log('access code is listed as null');
+				console.log('Invalid Credential Data');
+				alert('You will need to sign in first');
+				window.location.href = '/login';
 			}
 
-			ws = new WebSocket(`ws://18.188.92.244:80/chat/${username}?access_code=${access_code}`); // Specify your server address
+			ws = new WebSocket(`${websocket_url}/chat/${username}`); // Specify your server address
 
 			ws.onopen = () => {
 				connected.set(true); // Update connection status
 			};
 
 			// Handle incoming messages from the server
-			ws.onmessage = function (event) {
-				const message = event.data;
-				// const messageList = document.getElementById('message-list'); // Assuming an element with this ID exists
+			ws.onmessage = function ({ data: incomingMessage }) {
+				const parsedMessage = JSON.parse(incomingMessage);
 
-				// Create a new list element for the message
-				const messageListItem = createMessageListItem(message);
+				const messageItem = createMessageListItem(
+					parsedMessage.message,
+					parsedMessage.sender,
+					parsedMessage.broadcast
+				);
 
-				// Add the list element to the message list container
-				messageList.appendChild(messageListItem);
+				messageList.appendChild(messageItem);
 			};
 
 			ws.onerror = (error) => {
@@ -73,24 +94,33 @@
 		}
 	}
 
-	onMount(connectToWebsocket); // Initiate connection on page load
-
 	let messageInput; // Reference to the message input field
 
-	onMount(() => {
+	onMount(async () => {
+		await connectToWebsocket();
 		messageList = document.getElementById('message-list'); // Get reference on mount
 		messageInput = document.getElementById('message-input'); // Get reference on mount,
-	});
+	}); // Initiate connection on page load
 
 	function sendMessage(event) {
+		const username = getCookie('username');
 		event.preventDefault(); // Prevent default form submission behavior
 		const message = messageInput.value;
 		if (message.trim()) {
 			// Check for empty message
-			ws.send(message);
+			const chat_message_data = {
+				recipient: 'Broadcast',
+				sender: `${username}`,
+				message: `${message}`
+			};
+
+			const jsonData = JSON.stringify(chat_message_data);
+			ws.send(jsonData);
+
 			messageInput.value = ''; // Clear input field after sending
-			const messageListItem = createMessageListItem(message, true);
-			messageList.appendChild(messageListItem);
+		}
+		if (checked) {
+			div.scrollTo(0, div.scrollHeight);
 		}
 	}
 </script>
@@ -104,14 +134,21 @@
 </div>
 
 <div class="main-page">
-	<div class="chat-box">
-		<ul id="message-list"></ul>
+	<div class="chat-box" bind:this={div}>
+		<ul id="message-list" style="list-style-type: none;"></ul>
 	</div>
 
 	<form on:submit={sendMessage}>
 		<input type="text" id="message-input" placeholder="Enter message..." />
 		<button type="submit">Send</button>
 	</form>
+
+	<fieldset>
+		<label>
+			<input name="terms" type="checkbox" role="switch" bind:checked />
+			AutoScroll: {checked ? 'On' : 'Off'}
+		</label>
+	</fieldset>
 </div>
 
 <style>
@@ -133,19 +170,8 @@
 	.chat-box {
 		border: 1px solid #ddd;
 		padding: 1rem;
-		height: 200px;
-		overflow-y: scroll; /* Enable scrolling for long chat history */
-	}
-
-	.message-list {
-		list-style: none; /* Remove default list style */
-		padding: 0;
-		margin: 0;
-	}
-
-	.received-message {
-		background-color: #fff;
-		color: #666;
+		height: 20em;
+		overflow-y: auto; /* Enable scrolling for long chat history */
 	}
 
 	.main-page {
@@ -157,5 +183,6 @@
 		/* Limit content width */
 		max-width: 800px; /* Adjust as needed */
 		padding: 1rem; /* Add some padding for visual separation */
+		height: 100%;
 	}
 </style>
